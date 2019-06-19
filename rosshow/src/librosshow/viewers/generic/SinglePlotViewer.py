@@ -1,7 +1,15 @@
 import time
 import math
+import functools
 import librosshow.termgraphics as termgraphics
 from librosshow.plotters import ScopePlotter
+
+# https://stackoverflow.com/questions/31174295/getattr-and-setattr-on-nested-objects
+def rgetattr(obj, attr, *args):
+    def _getattr(obj, attr):
+        return getattr(obj, attr, *args)
+    return functools.reduce(_getattr, [obj] + attr.split('.'))
+
 
 class SinglePlotViewer(object):
     def __init__(self, canvas, title = "", data_field = "data"):
@@ -28,7 +36,7 @@ class SinglePlotViewer(object):
         )
 
     def update(self, msg):
-        self.last_value = float(getattr(msg, self.data_field))
+        self.last_value = float(rgetattr(msg, self.data_field))
         self.scope_plotter.update(self.last_value)
 
     def draw(self):

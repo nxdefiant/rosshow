@@ -74,6 +74,7 @@ def capture_key_loop(viewer):
         else:
             viewer.keypress(c)
 
+# from rostopic
 def get_subtopic_type(topic, real_topic):
     field = topic[len(real_topic)+1:]
     field_type = topic_type
@@ -139,7 +140,7 @@ if __name__ == "__main__":
 
     module_name, class_name, viewer_kwargs = VIEWER_MAPPING[field_type]
     if field is not None:
-        viewer_kwargs["data_field"] = field
+        viewer_kwargs["data_field"] = field.replace("/", ".")
     viewer_class = getattr(__import__(module_name, fromlist=(class_name)), class_name)
     viewer = viewer_class(canvas, title = TOPIC, **viewer_kwargs)
 
