@@ -6,10 +6,23 @@ import sys
 import time
 import random
 import threading
+import roslib
+import rostopic
 from librosshow.getch import Getch
 import librosshow.termgraphics as termgraphics
 
 VIEWER_MAPPING = {
+  "bool": ("librosshow.viewers.generic.SinglePlotViewer", "SinglePlotViewer", {}),
+  "float32": ("librosshow.viewers.generic.SinglePlotViewer", "SinglePlotViewer", {}),
+  "float64": ("librosshow.viewers.generic.SinglePlotViewer", "SinglePlotViewer", {}),
+  "int8": ("librosshow.viewers.generic.SinglePlotViewer", "SinglePlotViewer", {}),
+  "int16": ("librosshow.viewers.generic.SinglePlotViewer", "SinglePlotViewer", {}),
+  "int32": ("librosshow.viewers.generic.SinglePlotViewer", "SinglePlotViewer", {}),
+  "int64": ("librosshow.viewers.generic.SinglePlotViewer", "SinglePlotViewer", {}),
+  "uint8": ("librosshow.viewers.generic.SinglePlotViewer", "SinglePlotViewer", {}),
+  "uint16": ("librosshow.viewers.generic.SinglePlotViewer", "SinglePlotViewer", {}),
+  "uint32": ("librosshow.viewers.generic.SinglePlotViewer", "SinglePlotViewer", {}),
+  "uint64": ("librosshow.viewers.generic.SinglePlotViewer", "SinglePlotViewer", {}),
   "nav_msgs/Odometry": ("librosshow.viewers.nav_msgs.OdometryViewer", "OdometryViewer", {}),
   "nav_msgs/Path": ("librosshow.viewers.nav_msgs.PathViewer", "PathViewer", {}),
   "std_msgs/Bool": ("librosshow.viewers.generic.SinglePlotViewer", "SinglePlotViewer", {}),
@@ -61,6 +74,14 @@ def capture_key_loop(viewer):
         else:
             viewer.keypress(c)
 
+def get_subtopic_type(topic, real_topic):
+    field = topic[len(real_topic)+1:]
+    field_type = topic_type
+    for current_field in field.split('/'):
+        msg_class = roslib.message.get_message_class(field_type)
+        field_type = msg_class._slot_types[msg_class.__slots__.index(current_field)]
+    return field, field_type
+
 if __name__ == "__main__":
     # Parse arguments
     # TODO: proper argument parsing
@@ -95,12 +116,18 @@ if __name__ == "__main__":
 
     # Get information on all topic types
 
+    topic_type, real_topic, msg_eval = rostopic.get_topic_type(TOPIC)
     topic_types = dict(rospy.get_published_topics())
-    if TOPIC not in topic_types:
+    if real_topic not in topic_types:
         print("Topic {0} does not appear to be published yet.".format(TOPIC))
         sys.exit(0)
 
-    if topic_types[TOPIC] not in VIEWER_MAPPING:
+    if TOPIC == real_topic:
+        field, field_type = (None, topic_types[TOPIC])
+    else:
+        field, field_type = get_subtopic_type(TOPIC, real_topic)
+
+    if field_type not in VIEWER_MAPPING:
         print("Unsupported message type.")
         exit()
 
@@ -110,16 +137,18 @@ if __name__ == "__main__":
             mode = (termgraphics.MODE_EASCII if USE_ASCII else termgraphics.MODE_UNICODE),
             color_support = color_support)
 
-    module_name, class_name, viewer_kwargs = VIEWER_MAPPING[topic_types[TOPIC]]
+    module_name, class_name, viewer_kwargs = VIEWER_MAPPING[field_type]
+    if field is not None:
+        viewer_kwargs["data_field"] = field
     viewer_class = getattr(__import__(module_name, fromlist=(class_name)), class_name)
     viewer = viewer_class(canvas, title = TOPIC, **viewer_kwargs)
 
-    message_package, message_name = topic_types[TOPIC].split("/", 2)
+    message_package, message_name = topic_types[real_topic].split("/", 2)
     message_class = getattr(__import__(message_package + ".msg", fromlist=(message_name)), message_name)
 
     # Subscribe to the topic so the viewer actually gets the data
 
-    rospy.Subscriber(TOPIC, message_class, viewer.update)
+    rospy.Subscriber(real_topic, message_class, viewer.update)
 
     # Listen for keypresses
 
