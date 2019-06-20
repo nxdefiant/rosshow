@@ -8,6 +8,7 @@ import random
 import threading
 import roslib
 import rostopic
+import re
 from librosshow.getch import Getch
 import librosshow.termgraphics as termgraphics
 
@@ -49,6 +50,8 @@ VIEWER_MAPPING = {
   "sensor_msgs/Temperature": ("librosshow.viewers.generic.SinglePlotViewer", "SinglePlotViewer", {"data_field": "temperature"}),
 }
 
+_regex_array = re.compile("(.*)\[(.*)\]$")
+
 def capture_key_loop(viewer):
     global getch
     while True:
@@ -76,12 +79,22 @@ def capture_key_loop(viewer):
 
 # from rostopic
 def get_subtopic_type(topic, real_topic):
+    re_match = _regex_array.match(topic)
+    array_index = None
+    if re_match:
+        topic = re_match.group(1)
+        try:
+            array_index = int(re_match.group(2))
+        except ValueError:
+            print("Array slice is not an integer")
+            sys.exit(0)
     field = topic[len(real_topic)+1:]
     field_type = topic_type
     for current_field in field.split('/'):
         msg_class = roslib.message.get_message_class(field_type)
         field_type = msg_class._slot_types[msg_class.__slots__.index(current_field)]
-    return field, field_type
+    field_type = re.sub("\[.*\]", "", field_type) # remove [] in case of array
+    return field, field_type, array_index
 
 if __name__ == "__main__":
     # Parse arguments
@@ -123,10 +136,11 @@ if __name__ == "__main__":
         print("Topic {0} does not appear to be published yet.".format(TOPIC))
         sys.exit(0)
 
+    field = field_type = array_index = None
     if TOPIC == real_topic:
-        field, field_type = (None, topic_types[TOPIC])
+        field_type = topic_types[TOPIC]
     else:
-        field, field_type = get_subtopic_type(TOPIC, real_topic)
+        field, field_type, array_index = get_subtopic_type(TOPIC, real_topic)
 
     if field_type not in VIEWER_MAPPING:
         print("Unsupported message type.")
@@ -141,6 +155,8 @@ if __name__ == "__main__":
     module_name, class_name, viewer_kwargs = VIEWER_MAPPING[field_type]
     if field is not None:
         viewer_kwargs["data_field"] = field.replace("/", ".")
+    if array_index is not None:
+        viewer_kwargs["array_index"] = array_index
     viewer_class = getattr(__import__(module_name, fromlist=(class_name)), class_name)
     viewer = viewer_class(canvas, title = TOPIC, **viewer_kwargs)
 

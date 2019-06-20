@@ -12,7 +12,7 @@ def rgetattr(obj, attr, *args):
 
 
 class SinglePlotViewer(object):
-    def __init__(self, canvas, title = "", data_field = "data"):
+    def __init__(self, canvas, title = "", data_field = "data", array_index = None):
         self.g = canvas
         self.msg = None
         self.xmax = 10
@@ -20,6 +20,7 @@ class SinglePlotViewer(object):
         self.data_field = data_field
         self.last_value = 0.0
         self.last_update_shape_time = 0
+        self.array_index = array_index
 
         hmargin = self.g.shape[0]/40.
         vmargin = self.g.shape[1]/20.
@@ -36,7 +37,10 @@ class SinglePlotViewer(object):
         )
 
     def update(self, msg):
-        self.last_value = float(rgetattr(msg, self.data_field))
+        val = rgetattr(msg, self.data_field)
+        if self.array_index is not None:
+            val = val.__getitem__(self.array_index)
+        self.last_value = float(val)
         self.scope_plotter.update(self.last_value)
 
     def draw(self):
